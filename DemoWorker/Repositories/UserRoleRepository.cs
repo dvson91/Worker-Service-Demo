@@ -14,7 +14,7 @@ public class UserRoleRepository : IUserRoleRepository
 
     public UserRoleRepository(IConfiguration configuration, ILogger<UserRoleRepository> logger)
     {
-        _connectionString = configuration.GetConnectionString("DefaultConnection") 
+        _connectionString = configuration.GetConnectionString("DefaultConnection")
             ?? throw new ArgumentNullException(nameof(configuration), "Connection string not found");
         _logger = logger;
     }
@@ -24,7 +24,7 @@ public class UserRoleRepository : IUserRoleRepository
     public async Task<IEnumerable<UserRole>> GetAllAsync()
     {
         const string sql = "SELECT Id, DomainId, Role, Module, CreatedAt, UpdatedAt FROM UserRoles";
-        
+
         using var connection = CreateConnection();
         return await connection.QueryAsync<UserRole>(sql);
     }
@@ -32,7 +32,7 @@ public class UserRoleRepository : IUserRoleRepository
     public async Task<UserRole?> GetByIdAsync(int id)
     {
         const string sql = "SELECT Id, DomainId, Role, Module, CreatedAt, UpdatedAt FROM UserRoles WHERE Id = @Id";
-        
+
         using var connection = CreateConnection();
         return await connection.QuerySingleOrDefaultAsync<UserRole>(sql, new { Id = id });
     }
@@ -40,7 +40,7 @@ public class UserRoleRepository : IUserRoleRepository
     public async Task<IEnumerable<UserRole>> GetByModuleAsync(string module)
     {
         const string sql = "SELECT Id, DomainId, Role, Module, CreatedAt, UpdatedAt FROM UserRoles WHERE Module = @Module";
-        
+
         using var connection = CreateConnection();
         return await connection.QueryAsync<UserRole>(sql, new { Module = module });
     }
@@ -77,7 +77,7 @@ public class UserRoleRepository : IUserRoleRepository
     public async Task<int> DeleteAsync(int id)
     {
         const string sql = "DELETE FROM UserRoles WHERE Id = @Id";
-        
+
         using var connection = CreateConnection();
         return await connection.ExecuteAsync(sql, new { Id = id });
     }
@@ -85,7 +85,7 @@ public class UserRoleRepository : IUserRoleRepository
     public async Task<int> DeleteAllAsync()
     {
         const string sql = "DELETE FROM UserRoles";
-        
+
         using var connection = CreateConnection();
         return await connection.ExecuteAsync(sql);
     }
@@ -115,7 +115,7 @@ public class UserRoleRepository : IUserRoleRepository
     public async Task<bool> ExistsAsync(string domainId, string role, string module)
     {
         const string sql = "SELECT 1 FROM UserRoles WHERE DomainId = @DomainId AND Role = @Role AND Module = @Module";
-        
+
         using var connection = CreateConnection();
         var result = await connection.QuerySingleOrDefaultAsync<int?>(sql, new { DomainId = domainId, Role = role, Module = module });
         return result.HasValue;

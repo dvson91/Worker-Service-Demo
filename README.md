@@ -23,15 +23,25 @@ Update the connection string in `appsettings.json`:
 ```
 
 ### OneIDM API Configuration
-Configure the OneIDM API endpoint and token:
+Configure the OneIDM API settings including automatic Bearer token generation:
 ```json
 {
   "OneIdm": {
     "ApiUrl": "https://your-oneidm-api.com/userroles",
-    "ApiToken": "your-api-token-here"
+    "TokenEndpoint": "https://your-oneidm-api.com/auth/token",
+    "ApiKey": "your-api-key-here",
+    "TokenExpirationMinutes": 60,
+    "RefreshTokenBeforeExpiryMinutes": 5
   }
 }
 ```
+
+#### Authentication Flow
+The service automatically handles Bearer token generation:
+1. **API Key Exchange**: Uses the configured `ApiKey` to request Bearer tokens from the `TokenEndpoint`
+2. **Automatic Refresh**: Refreshes tokens before they expire (5 minutes before expiry by default)
+3. **Retry Logic**: Automatically retries API calls with new tokens if unauthorized (401) responses are received
+4. **Token Caching**: Caches valid tokens to minimize authentication requests
 
 ## Database Setup
 

@@ -9,17 +9,20 @@ public class UserRoleSyncService : IUserRoleSyncService
 {
     private readonly IUserRoleRepository _userRoleRepository;
     private readonly IHttpClientService _httpClientService;
+    private readonly ITokenManager _tokenManager;
     private readonly IConfiguration _configuration;
     private readonly ILogger<UserRoleSyncService> _logger;
 
     public UserRoleSyncService(
         IUserRoleRepository userRoleRepository,
         IHttpClientService httpClientService,
+        ITokenManager tokenManager,
         IConfiguration configuration,
         ILogger<UserRoleSyncService> logger)
     {
         _userRoleRepository = userRoleRepository;
         _httpClientService = httpClientService;
+        _tokenManager = tokenManager;
         _configuration = configuration;
         _logger = logger;
     }
@@ -60,7 +63,6 @@ public class UserRoleSyncService : IUserRoleSyncService
         try
         {
             var apiUrl = _configuration["OneIdm:ApiUrl"];
-            var apiToken = _configuration["OneIdm:ApiToken"];
 
             if (string.IsNullOrEmpty(apiUrl))
             {
@@ -68,10 +70,13 @@ public class UserRoleSyncService : IUserRoleSyncService
                 return null;
             }
 
+            // Get valid Bearer token from token manager
+            var bearerToken = await _tokenManager.GetValidTokenAsync(cancellationToken);
+
             var request = new Request<object>
             {
                 Url = apiUrl,
-                Token = apiToken ?? string.Empty,
+                Token = bearerToken,
                 AuthenticationType = AuthenticationType.Bearer
             };
 
@@ -80,7 +85,28 @@ public class UserRoleSyncService : IUserRoleSyncService
             if (!response.IsSuccess)
             {
                 _logger.LogError("Failed to fetch data from OneIDM API: {Message}", response.Message);
-                return null;
+
+                // If unauthorized, invalidate token and retry once
+                if (response.Message?.Contains("401") == true || response.Message?.Contains("Unauthorized") == true)
+                {
+                    _logger.LogWarning("Received unauthorized response, invalidating token and retrying");
+                    _tokenManager.InvalidateToken();
+
+                    var newBearerToken = await _tokenManager.GetValidTokenAsync(cancellationToken);
+                    request.Token = newBearerToken;
+
+                    response = await _httpClientService.SendGetAsync<object, OneIdmApiResponse>(request);
+
+                    if (!response.IsSuccess)
+                    {
+                        _logger.LogError("Retry after token refresh also failed: {Message}", response.Message);
+                        return null;
+                    }
+                }
+                else
+                {
+                    return null;
+                }
             }
 
             return response.Modules;
@@ -112,7 +138,7 @@ public class UserRoleSyncService : IUserRoleSyncService
             }
         }
 
-        _logger.LogDebug("Converted {ModuleCount} modules into {UserRoleCount} user roles", 
+        _logger.LogDebug("Converted {ModuleCount} modules into {UserRoleCount} user roles",
             modules.Count, userRoles.Count);
 
         return userRoles;

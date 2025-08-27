@@ -23,12 +23,12 @@ public class Worker : BackgroundService
             try
             {
                 _logger.LogInformation("Starting UserRole synchronization cycle at: {time}", DateTimeOffset.Now);
-                
+
                 using var scope = _serviceScopeFactory.CreateScope();
                 var userRoleSyncService = scope.ServiceProvider.GetRequiredService<IUserRoleSyncService>();
-                
+
                 var success = await userRoleSyncService.SyncUserRolesAsync(stoppingToken);
-                
+
                 if (success)
                 {
                     _logger.LogInformation("UserRole synchronization completed successfully");
@@ -48,7 +48,7 @@ public class Worker : BackgroundService
         }
 
         _logger.LogInformation("UserRole Sync Worker stopped at: {time}", DateTimeOffset.Now);
-        
+
         _logger.LogInformation("Worker running at: {time}", DateTimeOffset.Now);
         await Task.Delay(1000, stoppingToken);
     }
