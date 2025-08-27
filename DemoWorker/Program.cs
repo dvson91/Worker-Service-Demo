@@ -6,7 +6,7 @@ var builder = Host.CreateApplicationBuilder(args);
 builder.Services.AddHostedService<Worker>();
 
 // Register application services
-builder.Services.AddServiceCollection();
+builder.Services.AddServiceCollection(builder.Configuration);
 
 // Configure logging
 builder.Services.AddLogging(configure => configure.AddConsole());
