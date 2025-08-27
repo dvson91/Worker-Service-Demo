@@ -1,3 +1,6 @@
+using DemoWorker.Interfaces;
+using DemoWorker.Repositories;
+using DemoWorker.Services;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace DemoWorker;
@@ -13,6 +16,12 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IAuthorizationHandler, AuthorizationHandler>();
         services.AddScoped<IResponseProcessor, ResponseProcessor>();
         services.AddScoped<IHttpClientService, HttpClientService>();
+        
+        // Repository Services
+        services.AddScoped<IUserRoleRepository, UserRoleRepository>();
+        
+        // Business Logic Services
+        services.AddScoped<IUserRoleSyncService, UserRoleSyncService>();
         
         return services;
     }
