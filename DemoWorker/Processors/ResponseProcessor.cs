@@ -52,7 +52,7 @@ public class ResponseProcessor : IResponseProcessor
         catch (Exception ex)
         {
             _logger.LogError(ex, "Unexpected error while processing HTTP response");
-            
+
             return new TResponse
             {
                 IsSuccess = false,

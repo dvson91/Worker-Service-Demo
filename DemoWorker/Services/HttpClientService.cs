@@ -9,8 +9,8 @@ public class HttpClientService : IHttpClientService
     private readonly string _clientName;
 
     public HttpClientService(
-        IHttpClientFactory httpClientFactory, 
-        IResponseProcessor responseProcessor, 
+        IHttpClientFactory httpClientFactory,
+        IResponseProcessor responseProcessor,
         IAuthorizationHandler authHandler,
         ILogger<HttpClientService> logger,
         string clientName = "oneIDM")
