@@ -44,9 +44,8 @@ public class UserRoleSyncService : IUserRoleSyncService
             // Convert API data to UserRole entities
             var userRoles = ConvertApiDataToUserRoles(apiData);
 
-            // Clear existing data and insert new data (full sync)
-            await _userRoleRepository.DeleteAllAsync();
-            var insertedCount = await _userRoleRepository.BulkInsertAsync(userRoles);
+            // Replace all data atomically within a transaction (truncate + insert)
+            var insertedCount = await _userRoleRepository.ReplaceAllAsync(userRoles);
 
             _logger.LogInformation("Successfully synchronized {Count} user roles from OneIDM", insertedCount);
             return true;
