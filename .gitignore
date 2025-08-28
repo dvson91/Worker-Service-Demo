@@ -7,6 +7,9 @@ project.lock.json
 *.pyc
 nupkg/
 
+# Installation scripts
+dotnet-install.sh
+
 # Visual Studio Code
 .vscode/*
 !.vscode/settings.json
