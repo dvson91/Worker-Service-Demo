@@ -44,26 +44,4 @@ public class DapperContext : IDapperContext
             throw;
         }
     }
-
-    public async Task ExecuteInTransactionAsync(Func<IDbConnection, IDbTransaction, Task> operation)
-    {
-        using var connection = CreateConnection();
-        connection.Open();
-
-        using var transaction = connection.BeginTransaction();
-
-        try
-        {
-            await operation(connection, transaction);
-            transaction.Commit();
-
-            _logger.LogDebug("Transaction completed successfully");
-        }
-        catch (Exception ex)
-        {
-            transaction.Rollback();
-            _logger.LogError(ex, "Transaction failed and was rolled back");
-            throw;
-        }
-    }
 }

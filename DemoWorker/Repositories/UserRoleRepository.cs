@@ -16,39 +16,6 @@ public class UserRoleRepository : IUserRoleRepository
         _logger = logger;
     }
 
-    public async Task<int> DeleteAllAsync()
-    {
-        const string sql = "TRUNCATE TABLE UserRoles";
-
-        using var connection = _dapperContext.CreateConnection();
-        await connection.ExecuteAsync(sql);
-
-        _logger.LogDebug("Truncated UserRoles table");
-        return 0; // TRUNCATE doesn't return affected row count
-    }
-
-    public async Task<int> BulkInsertAsync(IEnumerable<UserRole> userRoles)
-    {
-        if (!userRoles.Any())
-        {
-            return 0;
-        }
-
-        const string sql = @"
-            INSERT INTO UserRoles (DomainId, Role, Module, CreatedAt, UpdatedAt) 
-            VALUES (@DomainId, @Role, @Module, @CreatedAt, @UpdatedAt)";
-
-        var now = DateTime.UtcNow;
-        foreach (var userRole in userRoles)
-        {
-            userRole.CreatedAt = now;
-            userRole.UpdatedAt = now;
-        }
-
-        using var connection = _dapperContext.CreateConnection();
-        return await connection.ExecuteAsync(sql, userRoles);
-    }
-
     public async Task<int> ReplaceAllAsync(IEnumerable<UserRole> userRoles)
     {
         return await _dapperContext.ExecuteInTransactionAsync(async (connection, transaction) =>
