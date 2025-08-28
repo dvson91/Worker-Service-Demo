@@ -1,56 +1,54 @@
 using System.Data;
-using System.Data.SqlClient;
 using Dapper;
 using DemoWorker.Entities;
 using DemoWorker.Interfaces;
-using Microsoft.Extensions.Configuration;
 
 namespace DemoWorker.Repositories;
 
 public class UserRoleRepository : IUserRoleRepository
 {
-    private readonly string _connectionString;
+    private readonly IDapperContext _dapperContext;
     private readonly ILogger<UserRoleRepository> _logger;
 
-    public UserRoleRepository(IConfiguration configuration, ILogger<UserRoleRepository> logger)
+    public UserRoleRepository(IDapperContext dapperContext, ILogger<UserRoleRepository> logger)
     {
-        _connectionString = configuration.GetConnectionString("DefaultConnection")
-            ?? throw new ArgumentNullException(nameof(configuration), "Connection string not found");
+        _dapperContext = dapperContext ?? throw new ArgumentNullException(nameof(dapperContext));
         _logger = logger;
     }
 
-    private IDbConnection CreateConnection() => new SqlConnection(_connectionString);
-
-    public async Task<int> DeleteAllAsync()
+    public async Task<int> ReplaceAllAsync(IEnumerable<UserRole> userRoles)
     {
-        const string sql = "TRUNCATE TABLE UserRoles";
-
-        using var connection = CreateConnection();
-        await connection.ExecuteAsync(sql);
-
-        _logger.LogDebug("Truncated UserRoles table");
-        return 0; // TRUNCATE doesn't return affected row count
-    }
-
-    public async Task<int> BulkInsertAsync(IEnumerable<UserRole> userRoles)
-    {
-        if (!userRoles.Any())
+        return await _dapperContext.ExecuteInTransactionAsync(async (connection, transaction) =>
         {
-            return 0;
-        }
+            // First truncate the table
+            const string truncateSql = "TRUNCATE TABLE UserRoles";
+            await connection.ExecuteAsync(truncateSql, transaction: transaction);
 
-        const string sql = @"
-            INSERT INTO UserRoles (DomainId, Role, Module, CreatedAt, UpdatedAt) 
-            VALUES (@DomainId, @Role, @Module, @CreatedAt, @UpdatedAt)";
+            _logger.LogDebug("Truncated UserRoles table within transaction");
 
-        var now = DateTime.UtcNow;
-        foreach (var userRole in userRoles)
-        {
-            userRole.CreatedAt = now;
-            userRole.UpdatedAt = now;
-        }
+            // If no new data, return 0
+            if (!userRoles.Any())
+            {
+                _logger.LogDebug("No user roles to insert");
+                return 0;
+            }
 
-        using var connection = CreateConnection();
-        return await connection.ExecuteAsync(sql, userRoles);
+            // Then insert new data
+            const string insertSql = @"
+                INSERT INTO UserRoles (DomainId, Role, Module, CreatedAt, UpdatedAt) 
+                VALUES (@DomainId, @Role, @Module, @CreatedAt, @UpdatedAt)";
+
+            var now = DateTime.UtcNow;
+            foreach (var userRole in userRoles)
+            {
+                userRole.CreatedAt = now;
+                userRole.UpdatedAt = now;
+            }
+
+            var insertedCount = await connection.ExecuteAsync(insertSql, userRoles, transaction: transaction);
+
+            _logger.LogDebug("Inserted {Count} user roles within transaction", insertedCount);
+            return insertedCount;
+        });
     }
 }

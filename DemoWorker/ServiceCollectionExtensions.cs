@@ -1,3 +1,4 @@
+using DemoWorker.Data;
 using DemoWorker.Interfaces;
 using DemoWorker.Models;
 using DemoWorker.Repositories;
@@ -23,6 +24,9 @@ public static class ServiceCollectionExtensions
 
         // Token Management
         services.AddSingleton<ITokenManager, OneIdmTokenManager>();
+
+        // Data Access Services
+        services.AddScoped<IDapperContext, DapperContext>();
 
         // Repository Services
         services.AddScoped<IUserRoleRepository, UserRoleRepository>();

@@ -58,9 +58,9 @@ Run the SQL script in `Scripts/CreateUserRolesTable.sql` to create the required 
 1. **UserRole Entity** (`Entities/UserRole.cs`)
    - Represents the data structure with DomainId, Role, Module fields
 
-2. **Repository Layer** (`Repositories/UserRoleRepository.cs`)
-   - Implements data access using Dapper
-   - Provides CRUD operations and bulk insert functionality
+2. **Data Access Layer**
+   - **DapperContext** (`Data/DapperContext.cs`) - Handles database connections and transaction management
+   - **UserRoleRepository** (`Repositories/UserRoleRepository.cs`) - Implements data access using Dapper with CRUD operations and bulk insert functionality
 
 3. **Service Layer** (`Services/UserRoleSyncService.cs`)
    - Handles business logic for synchronization
@@ -75,8 +75,15 @@ Run the SQL script in `Scripts/CreateUserRolesTable.sql` to create the required 
 1. Worker service starts and schedules sync every 6 hours
 2. UserRoleSyncService fetches data from OneIDM API
 3. API response is transformed into UserRole entities
-4. Existing data is cleared and new data is bulk inserted
+4. Data replacement is performed atomically within a database transaction (truncate + insert)
 5. Success/failure is logged appropriately
+
+### Data Consistency
+
+The synchronization process now uses database transactions to ensure data consistency:
+- All data operations (truncate and bulk insert) are performed within a single transaction
+- If any part of the sync fails, the entire transaction is rolled back
+- This prevents partial data states and ensures data integrity
 
 ## API Data Structure Expected
 
