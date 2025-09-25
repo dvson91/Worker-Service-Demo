@@ -1,29 +1,28 @@
+using DemoWorker.Clients;
 using DemoWorker.Entities;
 using DemoWorker.Interfaces;
 using DemoWorker.Models;
 using Microsoft.Extensions.Configuration;
+using Refit;
 
 namespace DemoWorker.Services;
 
 public class UserRoleSyncService : IUserRoleSyncService
 {
     private readonly IUserRoleRepository _userRoleRepository;
-    private readonly IHttpClientService _httpClientService;
+    private readonly IOneIdmApiClient _apiClient;
     private readonly ITokenManager _tokenManager;
-    private readonly IConfiguration _configuration;
     private readonly ILogger<UserRoleSyncService> _logger;
 
     public UserRoleSyncService(
         IUserRoleRepository userRoleRepository,
-        IHttpClientService httpClientService,
+        IOneIdmApiClient apiClient,
         ITokenManager tokenManager,
-        IConfiguration configuration,
         ILogger<UserRoleSyncService> logger)
     {
         _userRoleRepository = userRoleRepository;
-        _httpClientService = httpClientService;
+        _apiClient = apiClient;
         _tokenManager = tokenManager;
-        _configuration = configuration;
         _logger = logger;
     }
 
@@ -61,54 +60,68 @@ public class UserRoleSyncService : IUserRoleSyncService
     {
         try
         {
-            var apiUrl = _configuration["OneIdm:ApiUrl"];
+            // Get valid Bearer token from token manager
+            var bearerToken = await _tokenManager.GetValidTokenAsync(cancellationToken);
+            var authorizationHeader = $"Bearer {bearerToken}";
 
-            if (string.IsNullOrEmpty(apiUrl))
+            var response = await _apiClient.GetUserRolesAsync(authorizationHeader, cancellationToken);
+
+            if (response != null && response.IsSuccess)
             {
-                _logger.LogError("OneIdm API URL not configured");
+                return response.Modules;
+            }
+
+            _logger.LogError("Failed to fetch data from OneIDM API: {Message}", response?.Message);
+
+            // If unauthorized, invalidate token and retry once
+            if (response?.StatusCode == 401 || response?.Message?.Contains("401") == true || response?.Message?.Contains("Unauthorized") == true)
+            {
+                _logger.LogWarning("Received unauthorized response, invalidating token and retrying");
+                _tokenManager.InvalidateToken();
+
+                var newBearerToken = await _tokenManager.GetValidTokenAsync(cancellationToken);
+                var newAuthorizationHeader = $"Bearer {newBearerToken}";
+
+                var retryResponse = await _apiClient.GetUserRolesAsync(newAuthorizationHeader, cancellationToken);
+
+                if (retryResponse != null && retryResponse.IsSuccess)
+                {
+                    return retryResponse.Modules;
+                }
+
+                _logger.LogError("Retry after token refresh also failed: {Message}", retryResponse?.Message);
                 return null;
             }
 
-            // Get valid Bearer token from token manager
-            var bearerToken = await _tokenManager.GetValidTokenAsync(cancellationToken);
+            return null;
+        }
+        catch (ApiException ex)
+        {
+            _logger.LogError(ex, "API error fetching data from OneIDM API. Status: {StatusCode}, Content: {Content}",
+                ex.StatusCode, ex.Content);
 
-            var request = new Request<object>
+            // Handle unauthorized error with token refresh
+            if (ex.StatusCode == System.Net.HttpStatusCode.Unauthorized)
             {
-                Url = apiUrl,
-                Token = bearerToken,
-                AuthenticationType = AuthenticationType.Bearer
-            };
+                _logger.LogWarning("Received unauthorized API exception, invalidating token and retrying");
+                _tokenManager.InvalidateToken();
 
-            var response = await _httpClientService.SendGetAsync<object, OneIdmApiResponse>(request);
-
-            if (!response.IsSuccess)
-            {
-                _logger.LogError("Failed to fetch data from OneIDM API: {Message}", response.Message);
-
-                // If unauthorized, invalidate token and retry once
-                if (response.Message?.Contains("401") == true || response.Message?.Contains("Unauthorized") == true)
+                try
                 {
-                    _logger.LogWarning("Received unauthorized response, invalidating token and retrying");
-                    _tokenManager.InvalidateToken();
-
                     var newBearerToken = await _tokenManager.GetValidTokenAsync(cancellationToken);
-                    request.Token = newBearerToken;
+                    var newAuthorizationHeader = $"Bearer {newBearerToken}";
 
-                    response = await _httpClientService.SendGetAsync<object, OneIdmApiResponse>(request);
-
-                    if (!response.IsSuccess)
-                    {
-                        _logger.LogError("Retry after token refresh also failed: {Message}", response.Message);
-                        return null;
-                    }
+                    var retryResponse = await _apiClient.GetUserRolesAsync(newAuthorizationHeader, cancellationToken);
+                    return retryResponse?.Modules;
                 }
-                else
+                catch (Exception retryEx)
                 {
+                    _logger.LogError(retryEx, "Retry after token refresh also failed");
                     return null;
                 }
             }
 
-            return response.Modules;
+            return null;
         }
         catch (Exception ex)
         {

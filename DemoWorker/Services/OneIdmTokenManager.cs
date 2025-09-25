@@ -1,14 +1,13 @@
+using DemoWorker.Clients;
 using DemoWorker.Interfaces;
 using DemoWorker.Models;
 using Microsoft.Extensions.Options;
-using System.Text.Json;
-using System.Text;
 
 namespace DemoWorker.Services;
 
 public class OneIdmTokenManager : ITokenManager
 {
-    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly IOneIdmTokenClient _tokenClient;
     private readonly OneIdmConfig _config;
     private readonly ILogger<OneIdmTokenManager> _logger;
     private readonly SemaphoreSlim _tokenSemaphore = new(1, 1);
@@ -17,11 +16,11 @@ public class OneIdmTokenManager : ITokenManager
     private DateTime _tokenExpiry = DateTime.MinValue;
 
     public OneIdmTokenManager(
-        IHttpClientFactory httpClientFactory,
+        IOneIdmTokenClient tokenClient,
         IOptions<OneIdmConfig> config,
         ILogger<OneIdmTokenManager> logger)
     {
-        _httpClientFactory = httpClientFactory;
+        _tokenClient = tokenClient;
         _config = config.Value;
         _logger = logger;
     }
@@ -60,26 +59,8 @@ public class OneIdmTokenManager : ITokenManager
                 throw new InvalidOperationException("OneIDM Token Endpoint not configured");
             }
 
-            var client = _httpClientFactory.CreateClient();
-
             var tokenRequest = new TokenRequest { ApiKey = _config.ApiKey };
-            var jsonContent = JsonSerializer.Serialize(tokenRequest);
-            var content = new StringContent(jsonContent, Encoding.UTF8, "application/json");
-
-            var response = await client.PostAsync(_config.TokenEndpoint, content, cancellationToken);
-
-            if (!response.IsSuccessStatusCode)
-            {
-                _logger.LogError("Failed to obtain token from OneIDM. Status: {StatusCode}, Reason: {ReasonPhrase}",
-                    response.StatusCode, response.ReasonPhrase);
-                throw new HttpRequestException($"Token request failed: {response.StatusCode} - {response.ReasonPhrase}");
-            }
-
-            var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
-            var tokenResponse = JsonSerializer.Deserialize<TokenResponse>(responseContent, new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true
-            });
+            var tokenResponse = await _tokenClient.GetTokenAsync(tokenRequest, cancellationToken);
 
             if (tokenResponse == null || string.IsNullOrEmpty(tokenResponse.AccessToken))
             {
