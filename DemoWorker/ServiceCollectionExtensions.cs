@@ -20,21 +20,15 @@ public static class ServiceCollectionExtensions
         services.Configure<OneIdmConfig>(configuration.GetSection("OneIdm"));
 
         // Refit API Clients with HttpClientFactory
-        var oneIdmConfig = configuration.GetSection("OneIdm").Get<OneIdmConfig>();
+        var oneIdmConfig = configuration.GetSection("OneIdm").Get<OneIdmConfig>()!;
 
-        if (!string.IsNullOrEmpty(oneIdmConfig?.TokenEndpoint))
-        {
-            var tokenBaseUri = new Uri(oneIdmConfig.TokenEndpoint).GetLeftPart(UriPartial.Authority);
-            services.AddRefitClient<IOneIdmTokenClient>()
-                .ConfigureHttpClient(c => c.BaseAddress = new Uri(tokenBaseUri));
-        }
+        var tokenBaseUri = new Uri(oneIdmConfig.TokenEndpoint).GetLeftPart(UriPartial.Authority);
+        services.AddRefitClient<IOneIdmTokenClient>()
+            .ConfigureHttpClient(c => c.BaseAddress = new Uri(tokenBaseUri));
 
-        if (!string.IsNullOrEmpty(oneIdmConfig?.ApiUrl))
-        {
-            var apiBaseUri = new Uri(oneIdmConfig.ApiUrl).GetLeftPart(UriPartial.Authority);
-            services.AddRefitClient<IOneIdmApiClient>()
-                .ConfigureHttpClient(c => c.BaseAddress = new Uri(apiBaseUri));
-        }
+        var apiBaseUri = new Uri(oneIdmConfig.ApiUrl).GetLeftPart(UriPartial.Authority);
+        services.AddRefitClient<IOneIdmApiClient>()
+            .ConfigureHttpClient(c => c.BaseAddress = new Uri(apiBaseUri));
 
         // Token Management
         services.AddSingleton<ITokenManager, OneIdmTokenManager>();
