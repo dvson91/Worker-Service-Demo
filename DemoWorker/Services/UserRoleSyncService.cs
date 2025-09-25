@@ -72,55 +72,12 @@ public class UserRoleSyncService : IUserRoleSyncService
             }
 
             _logger.LogError("Failed to fetch data from OneIDM API: {Message}", response?.Message);
-
-            // If unauthorized, invalidate token and retry once
-            if (response?.StatusCode == 401 || response?.Message?.Contains("401") == true || response?.Message?.Contains("Unauthorized") == true)
-            {
-                _logger.LogWarning("Received unauthorized response, invalidating token and retrying");
-                _tokenManager.InvalidateToken();
-
-                var newBearerToken = await _tokenManager.GetValidTokenAsync(cancellationToken);
-                var newAuthorizationHeader = $"Bearer {newBearerToken}";
-
-                var retryResponse = await _apiClient.GetUserRolesAsync(newAuthorizationHeader, cancellationToken);
-
-                if (retryResponse != null && retryResponse.IsSuccess)
-                {
-                    return retryResponse.Modules;
-                }
-
-                _logger.LogError("Retry after token refresh also failed: {Message}", retryResponse?.Message);
-                return null;
-            }
-
             return null;
         }
         catch (ApiException ex)
         {
             _logger.LogError(ex, "API error fetching data from OneIDM API. Status: {StatusCode}, Content: {Content}",
                 ex.StatusCode, ex.Content);
-
-            // Handle unauthorized error with token refresh
-            if (ex.StatusCode == System.Net.HttpStatusCode.Unauthorized)
-            {
-                _logger.LogWarning("Received unauthorized API exception, invalidating token and retrying");
-                _tokenManager.InvalidateToken();
-
-                try
-                {
-                    var newBearerToken = await _tokenManager.GetValidTokenAsync(cancellationToken);
-                    var newAuthorizationHeader = $"Bearer {newBearerToken}";
-
-                    var retryResponse = await _apiClient.GetUserRolesAsync(newAuthorizationHeader, cancellationToken);
-                    return retryResponse?.Modules;
-                }
-                catch (Exception retryEx)
-                {
-                    _logger.LogError(retryEx, "Retry after token refresh also failed");
-                    return null;
-                }
-            }
-
             return null;
         }
         catch (Exception ex)
