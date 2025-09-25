@@ -1,9 +1,11 @@
+using DemoWorker.Clients;
 using DemoWorker.Data;
 using DemoWorker.Interfaces;
 using DemoWorker.Models;
 using DemoWorker.Repositories;
 using DemoWorker.Services;
 using Microsoft.Extensions.DependencyInjection;
+using Refit;
 
 namespace DemoWorker;
 
@@ -17,10 +19,16 @@ public static class ServiceCollectionExtensions
         // Configuration
         services.Configure<OneIdmConfig>(configuration.GetSection("OneIdm"));
 
-        // Application Services
-        services.AddScoped<IAuthorizationHandler, AuthorizationHandler>();
-        services.AddScoped<IResponseProcessor, ResponseProcessor>();
-        services.AddScoped<IHttpClientService, HttpClientService>();
+        // Refit API Clients with HttpClientFactory
+        var oneIdmConfig = configuration.GetSection("OneIdm").Get<OneIdmConfig>()!;
+
+        var tokenBaseUri = new Uri(oneIdmConfig.TokenEndpoint).GetLeftPart(UriPartial.Authority);
+        services.AddRefitClient<IOneIdmTokenClient>()
+            .ConfigureHttpClient(c => c.BaseAddress = new Uri(tokenBaseUri));
+
+        var apiBaseUri = new Uri(oneIdmConfig.ApiUrl).GetLeftPart(UriPartial.Authority);
+        services.AddRefitClient<IOneIdmApiClient>()
+            .ConfigureHttpClient(c => c.BaseAddress = new Uri(apiBaseUri));
 
         // Token Management
         services.AddSingleton<ITokenManager, OneIdmTokenManager>();
